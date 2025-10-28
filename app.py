@@ -376,6 +376,9 @@ def _rmse(y_true, y_pred) -> float:
 
 
 def train_model(train_df: pd.DataFrame, progress_placeholder=None) -> Tuple[XGBRegressor, Preprocessor, pd.DataFrame, pd.Series]:
+    if not _dependencies_ok():
+        raise RuntimeError("Required dependencies not available for training")
+    
     pre = Preprocessor().fit(train_df)
     X = pre.transform(train_df)
     y = train_df[pre.target_col].astype(float)
@@ -393,6 +396,9 @@ def train_model(train_df: pd.DataFrame, progress_placeholder=None) -> Tuple[XGBR
 
 
 def quick_cv_rmse(model: XGBRegressor, X: pd.DataFrame, y: pd.Series, n_splits: int = 3) -> float:
+    if not _dependencies_ok():
+        raise RuntimeError("Required dependencies not available for cross-validation")
+    
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
     rmses = []
     for train_idx, val_idx in kf.split(X):
@@ -496,7 +502,7 @@ if (st.session_state.model is None or st.session_state.pre is None) and AUTO_TRA
         st.session_state.model = m2
         st.session_state.pre = p2
         st.sidebar.success("Model auto-loaded from disk.")
-    elif os.path.exists(default_train_path) and pd is not None:
+    elif os.path.exists(default_train_path) and _dependencies_ok():
         try:
             ph = st.sidebar.empty()
             ph.write("Auto-training model from bundled train.csv…")
@@ -510,6 +516,8 @@ if (st.session_state.model is None or st.session_state.pre is None) and AUTO_TRA
             st.sidebar.success(f"Auto-trained model. Quick CV RMSE: {rmse:.5f}")
         except Exception as e:
             st.sidebar.error(f"Auto-training failed: {e}")
+    elif os.path.exists(default_train_path) and not _dependencies_ok():
+        st.sidebar.warning("train.csv found but dependencies missing. Install: pip install streamlit xgboost scikit-learn pandas numpy")
     else:
         st.sidebar.info("Upload or provide path to train.csv to enable auto-training.")
 
