@@ -36,6 +36,72 @@ mean_squared_error = getattr(_sk_metrics, "mean_squared_error", None) if _sk_met
 _xgb_mod = _safe_import_module("xgboost")
 XGBRegressor = getattr(_xgb_mod, "XGBRegressor", None) if _xgb_mod else None
 
+# -----------------------------
+# Fallbacks when scikit-learn is unavailable
+# -----------------------------
+class _FallbackLabelEncoder:
+    def __init__(self):
+        self.classes_ = []
+        self._map = {}
+        self._inv = {}
+
+    def fit(self, values):
+        vals = [str(v) for v in values]
+        uniq = sorted(set(vals))
+        self.classes_ = uniq
+        self._map = {c: i for i, c in enumerate(uniq)}
+        self._inv = {i: c for c, i in self._map.items()}
+        return self
+
+    def transform(self, values):
+        return [int(self._map.get(str(v), 0)) for v in values]
+
+    def inverse_transform(self, ints):
+        if not self.classes_:
+            return [""] * len(ints)
+        return [self._inv.get(int(i), self.classes_[0]) for i in ints]
+
+
+class _FallbackKFold:
+    def __init__(self, n_splits=3, shuffle=False, random_state=None):
+        self.n_splits = int(max(2, n_splits))
+        self.shuffle = bool(shuffle)
+        self.random_state = random_state
+
+    def split(self, X):
+        n = len(X)
+        indices = list(range(n))
+        if self.shuffle:
+            if np is not None:
+                rng = np.random.default_rng(self.random_state)
+                rng.shuffle(indices)
+            else:
+                import random
+                rnd = random.Random(self.random_state)
+                rnd.shuffle(indices)
+        # Compute fold sizes
+        fold_sizes = [n // self.n_splits] * self.n_splits
+        for i in range(n % self.n_splits):
+            fold_sizes[i] += 1
+        # Slice indices into folds
+        current = 0
+        folds = []
+        for size in fold_sizes:
+            start, stop = current, current + size
+            folds.append(indices[start:stop])
+            current = stop
+        # Yield train/val indices
+        for i in range(self.n_splits):
+            val_idx = folds[i]
+            train_idx = [idx for j, fold in enumerate(folds) if j != i for idx in fold]
+            yield train_idx, val_idx
+
+
+if LabelEncoder is None:
+    LabelEncoder = _FallbackLabelEncoder
+if KFold is None:
+    KFold = _FallbackKFold
+
 
 def _dependencies_ok() -> bool:
     missing = []
@@ -43,9 +109,6 @@ def _dependencies_ok() -> bool:
         ("numpy", np),
         ("pandas", pd),
         ("streamlit", st),
-        ("sklearn.preprocessing.LabelEncoder", LabelEncoder),
-        ("sklearn.model_selection.KFold", KFold),
-        ("sklearn.metrics.mean_squared_error", mean_squared_error),
         ("xgboost.XGBRegressor", XGBRegressor),
     ]
     for name, obj in checks:
@@ -55,7 +118,7 @@ def _dependencies_ok() -> bool:
         msg = (
             "Missing Python packages: "
             + ", ".join(missing)
-            + "\nInstall with: pip install streamlit xgboost scikit-learn pandas numpy"
+            + "\nInstall with: pip install streamlit xgboost pandas numpy"
         )
         if st:
             try:
@@ -205,9 +268,11 @@ class Preprocessor:
         for col in self.cat_cols:
             val = str(row[col])
             le = self.label_encoders[col]
-            # Handle unseen values by mapping to most frequent class
-            if val not in le.classes_.tolist():
-                val = le.classes_[0]
+            # Handle unseen values by mapping to first known class
+            classes = le.classes_
+            classes_list = classes.tolist() if hasattr(classes, "tolist") else list(classes)
+            if classes_list and val not in classes_list:
+                val = classes_list[0]
             data[f"{col}_le"] = int(le.transform([val])[0])
         # Numeric bins via digitize
         for col in self.num_cols:
@@ -260,7 +325,7 @@ def serialize_preprocessor(pre: 'Preprocessor') -> Dict:
         "num_cols": pre.num_cols,
         "bool_cols": pre.bool_cols,
         "target_col": pre.target_col,
-        "label_encoders": {col: le.classes_.tolist() for col, le in pre.label_encoders.items()},
+        "label_encoders": {col: (le.classes_.tolist() if hasattr(le.classes_, "tolist") else list(le.classes_)) for col, le in pre.label_encoders.items()},
         "freq_maps": pre.freq_maps,
         "bin_edges": {col: edges.tolist() for col, edges in pre.bin_edges.items()},
         "feature_names_": pre.feature_names_,
@@ -278,15 +343,21 @@ def deserialize_preprocessor(data: Dict) -> 'Preprocessor':
     for col, classes in data.get("label_encoders", {}).items():
         le = LabelEncoder()
         # Directly assign classes_ to preserve encoding mapping
-        if np is not None:
-            le.classes_ = np.array(classes)
+        if hasattr(le, "_map"):
+            # Our fallback encoder: store as list and rebuild maps
+            le.classes_ = list(classes)
+            le._map = {c: i for i, c in enumerate(le.classes_)}
+            le._inv = {i: c for c, i in le._map.items()}
         else:
-            # Fallback: attempt dynamic import, otherwise use list
-            _np = _safe_import_module("numpy")
-            if _np is not None:
-                le.classes_ = _np.array(classes)
+            if np is not None:
+                le.classes_ = np.array(classes)
             else:
-                le.classes_ = classes
+                # Fallback: attempt dynamic import, otherwise use list
+                _np = _safe_import_module("numpy")
+                if _np is not None:
+                    le.classes_ = _np.array(classes)
+                else:
+                    le.classes_ = classes
         pre.label_encoders[col] = le
     pre.freq_maps = data.get("freq_maps", {})
     pre.bin_edges = {col: np.array(edges) for col, edges in data.get("bin_edges", {}).items()}
