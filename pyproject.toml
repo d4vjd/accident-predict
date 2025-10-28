@@ -1,0 +1,8 @@
+[project]
+name = "accident-predict"
+version = "0.0.0"
+description = "Streamlit app for accident risk prediction"
+requires-python = ">=3.9,<3.13"
+
+[tool.streamlit]
+main_script = "app.py"
