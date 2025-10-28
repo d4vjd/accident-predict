@@ -20,7 +20,7 @@ An interactive Streamlit application for predicting road accident risk using mac
 
 2. **Install dependencies**
    ```bash
-   pip install streamlit xgboost scikit-learn pandas numpy
+   pip install -r requirements.txt
    ```
 
 3. **Run the application**
@@ -109,12 +109,18 @@ accident-predict/
 
 ## Requirements
 
-- Python 3.7+
-- streamlit
-- xgboost
-- scikit-learn
-- pandas
-- numpy
+- Python 3.9+
+- See `requirements.txt` for exact pinned package versions used in deployment
+
+## Deployment
+
+### Streamlit Cloud
+- Push this repository to GitHub.
+- Ensure `requirements.txt` exists at the repo root (included).
+- Create a new app on Streamlit Cloud and point it to `app.py`.
+- On first deploy, Streamlit Cloud installs dependencies from `requirements.txt`.
+- If you see a banner saying missing packages, click the app menu and choose “Restart”, ensuring the latest `requirements.txt` is picked up.
+- The app auto-loads `models/` artifacts if present; if loading fails, it auto-trains from `train.csv` when dependencies are available.
 
 ## Contributing
 
