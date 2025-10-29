@@ -499,7 +499,9 @@ def make_input_form(pre: Optional[Preprocessor], key_prefix: str = "") -> Dict:
     def choices(col):
         if pre and col in pre.cat_cols:
             # Use original classes order
-            return pre.label_encoders[col].classes_.tolist()
+            classes = pre.label_encoders[col].classes_
+            # Handle numpy array, list, or other iterables
+            return classes.tolist() if hasattr(classes, "tolist") else list(classes)
         return DEFAULT_CATEGORIES.get(col, [])
 
     c1, c2, c3 = st.columns(3)
