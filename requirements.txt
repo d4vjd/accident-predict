@@ -1,8 +1,4 @@
 streamlit>=1.38,<2
-# Use versions with wheels for Python 3.13 on Streamlit Cloud
 xgboost>=2.1.1
 pandas>=2.2.3
 numpy>=2.1.2
-xgboost==2.0.3
-pandas==2.2.2
-numpy==1.26.4
