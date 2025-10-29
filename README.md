@@ -1,4 +1,6 @@
-# Accident Risk Predictor 🚗⚠️
+# Accident Risk Predictor 
+
+Live App: https://accident-predict.streamlit.app/
 
 An interactive Streamlit application for predicting road accident risk using machine learning. Built with XGBoost and trained on the Kaggle Playground Series S5E10 dataset.
 
