@@ -588,7 +588,7 @@ if (st.session_state.model is None or st.session_state.pre is None) and AUTO_TRA
         except Exception as e:
             st.sidebar.error(f"Auto-training failed: {e}")
     elif os.path.exists(default_train_path) and not _dependencies_ok():
-        st.sidebar.warning("train.csv found but dependencies missing. Install: pip install streamlit xgboost scikit-learn pandas numpy")
+        st.sidebar.warning("train.csv found but dependencies missing. Install: pip install streamlit xgboost pandas numpy")
     else:
         st.sidebar.info("Upload or provide path to train.csv to enable auto-training.")
 
